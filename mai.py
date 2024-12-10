@@ -1,38 +1,37 @@
-from flask import Flask, jsonify, request
+from flask import Flask, render_template
+from flask_socketio import SocketIO, emit
 
 app = Flask(__name__)
+app.config['SECRET_KEY'] = 'secret!'
+socketio = SocketIO(app)
 
-# LED holatini saqlash
 led_state = "0"
 
 @app.route("/")
-def home():
+def index():
     return f"""
     <html>
-    <head>
-        <title>ESP8266 LED Controller</title> 
-    </head>
     <body>
-        <h1>ESP8266 LED Controller</h1>
-        <button onclick="fetch('/led/on').then(() => location.reload())">LED ON</button>
-        <button onclick="fetch('/led/off').then(() => location.reload())">LED OFF</button>
-        <p>LED State: {led_state}</p>
+        <h1>LED Controller</h1>
+        <button onclick="toggleLED('1')">Turn ON</button>
+        <button onclick="toggleLED('0')">Turn OFF</button>
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.0/socket.io.js"></script>
+        <script>
+            const socket = io();
+
+            function toggleLED(state) {{
+                socket.emit('change_led', state);
+            }}
+        </script>
     </body>
     </html>
     """
 
-@app.route("/led/<state>", methods=["GET"])
-def control_led(state):
+@socketio.on('change_led')
+def handle_change_led(state):
     global led_state
-    if state == "on":
-        led_state = "1"
-    elif state == "off":
-        led_state = "0"
-    return jsonify({"led_state": led_state})
-
-@app.route("/state", methods=["GET"])
-def get_state():
-    return jsonify({"led_state": led_state})
+    led_state = state
+    emit('update_led', {'led_state': led_state}, broadcast=True)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000)
+    socketio.run(app, host="0.0.0.0", port=5000)
